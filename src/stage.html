@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Poppins;font-weight:600;src:url(../assets/fonts/Poppins-600.woff2)}
+@font-face{font-family:Poppins;font-weight:700;src:url(../assets/fonts/Poppins-700.woff2)}
+@font-face{font-family:Poppins;font-weight:800;src:url(../assets/fonts/Poppins-800.woff2)}
+@font-face{font-family:Poppins;font-weight:900;src:url(../assets/fonts/Poppins-900.woff2)}
+html,body{margin:0;padding:0;background:#0b0b0d;overflow:hidden}
+#root{position:relative;width:1080px;height:1920px;overflow:hidden;background:#0b0b0d;font-family:Poppins}
+#root>svg{position:absolute;left:0;top:0;width:1080px;height:1920px}
+text{font-family:Poppins,'Noto Color Emoji'}
+#guides{display:none}
+body.guides #guides{display:block}
+</style></head>
+<body>
+<div id="root">
+ <svg id="world" viewBox="0 0 1080 1920"></svg>
+ <svg id="fx" viewBox="0 0 1080 1920"></svg>
+ <svg id="hud" viewBox="0 0 1080 1920"></svg>
+ <svg id="subs" viewBox="0 0 1080 1920"></svg>
+ <svg id="guides" viewBox="0 0 1080 1920">
+  <rect x="0" y="0" width="1080" height="150" fill="#f0f" opacity=".25"/>
+  <rect x="0" y="1540" width="1080" height="380" fill="#f0f" opacity=".25"/>
+  <rect x="950" y="0" width="130" height="1920" fill="#0ff" opacity=".2"/>
+ </svg>
+</div>
+<script src="stage.js"></script>
+</body></html>
