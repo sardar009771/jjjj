@@ -10,7 +10,7 @@ import asyncio, json, os, re, subprocess, sys, hashlib
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(__file__))
-from script_data import VOICE, RATE, PAD, SAY, HOOKS, SCENES
+from script_data import VOICE, RATE, PAD, SAY, HOOKS, SCENES, ENGINE, PIPER_MODEL, PIPER_LENGTH, SAY_PIPER
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "build", "audio")
@@ -60,6 +60,32 @@ async def edge_segment(text, mp3_path):
     return bounds
 
 
+PIPER_DIR = os.path.join(ROOT, "assets", "piper")
+_WHISPER = None
+
+
+def piper_segment(text, wav_path):
+    """Piper (Thorsten) -> WAV, Wortgrenzen per faster-whisper aus der fertigen Aufnahme."""
+    global _WHISPER
+    model = os.path.join(PIPER_DIR, PIPER_MODEL + ".onnx")
+    if not os.path.exists(model):
+        os.makedirs(PIPER_DIR, exist_ok=True)
+        base = "https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/high/"
+        for f in (PIPER_MODEL + ".onnx", PIPER_MODEL + ".onnx.json"):
+            subprocess.run(["curl", "-sSL", "-o", os.path.join(PIPER_DIR, f), base + f], check=True)
+    subprocess.run([sys.executable, "-m", "piper", "-m", model, "-f", wav_path, "--length-scale", str(PIPER_LENGTH),
+                    "--sentence-silence", "0.25"], input=text.encode(), check=True, capture_output=True)
+    if _WHISPER is None:
+        os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+        from faster_whisper import WhisperModel
+        _WHISPER = WhisperModel("small", compute_type="int8")
+    a16 = subprocess.run(["ffmpeg", "-v", "error", "-i", wav_path, "-f", "f32le", "-ac", "1", "-ar", "16000", "-"],
+                         capture_output=True, check=True).stdout
+    segs, _ = _WHISPER.transcribe(np.frombuffer(a16, np.float32), language="de", word_timestamps=True,
+                                  initial_prompt=text)
+    return [dict(text=w.word.strip(), start=w.start, end=w.end) for sg in segs for w in sg.words]
+
+
 def align(toks, bounds):
     """Ordnet Wortgrenzen den Untertitel-Wörtern zu (zeichengenau interpoliert,
     funktioniert auch wenn die TTS mehrere Wörter in einer Grenze zusammenfasst)."""
@@ -87,7 +113,35 @@ def align(toks, bounds):
 
 # edge-tts-MP3s beginnen ~80 ms später als die gemeldeten Wortgrenzen (Encoder-Delay, gemessen)
 EDGE_LAT = 0.09
-MAXGAP = 0.17  # lange Satzpausen werden auf diesen Wert gekürzt (Jump-Cut-Tempo)
+MAXGAP = 0.17
+
+
+def align_words(toks, bounds):
+    """Wortweise Zuordnung (für Whisper-Zeitstempel): exakte Treffer übernehmen,
+    abweichende Stellen (z.B. „fünf“ vs. „5“, „ProFuel“ vs. „pro FUEL“) über ihre Zeitspanne verteilen."""
+    import difflib
+    tk = [t for t in toks if norm(t["word"])]
+    A = [norm(t["word"]) for t in tk]
+    B = [norm(b["text"]) for b in bounds]
+    res = [None] * len(tk)
+    ops = difflib.SequenceMatcher(None, A, B, autojunk=False).get_opcodes()
+    for op, i1, i2, j1, j2 in ops:
+        if op == "equal":
+            for k in range(i2 - i1):
+                b = bounds[j1 + k]; res[i1 + k] = (b["start"], b["end"])
+        elif op == "replace":
+            st, en = bounds[j1]["start"], bounds[j2 - 1]["end"]
+            lens = [max(1, len(A[i])) for i in range(i1, i2)]; tot = sum(lens); c = 0
+            for k, i in enumerate(range(i1, i2)):
+                res[i] = (st + (en - st) * c / tot, st + (en - st) * (c + lens[k]) / tot); c += lens[k]
+    # nicht zugeordnete Wörter zwischen Nachbarn einfügen
+    for i in range(len(res)):
+        if res[i] is None:
+            prev = next((res[k][1] for k in range(i - 1, -1, -1) if res[k]), 0.0)
+            nxt = next((res[k][0] for k in range(i + 1, len(res)) if res[k]), prev + 0.3)
+            res[i] = (prev, max(prev + 0.05, nxt))
+            print(f"   [align] '{tk[i]['word']}' interpoliert")
+    return [dict(word=t["word"], key=t["key"], start=r[0], end=r[1]) for t, r in zip(tk, res)]  # lange Satzpausen werden auf diesen Wert gekürzt (Jump-Cut-Tempo)
 
 
 def tighten(pcm, words):
@@ -158,10 +212,23 @@ def shorten_silences(pcm, words, min_len=0.42, keep=0.30):
     return res, words
 
 
+def snap_onsets(pcm, words):
+    """Wortanfänge, die in Stille liegen, auf den echten Toneinsatz verschieben (max. 0,35 s)."""
+    e = np.convolve(np.abs(pcm), np.ones(480) / 480, "same")
+    for w in words:
+        i = int(w["start"] * SR)
+        if i < len(e) and e[i] < 0.012:
+            win = e[i:i + int(0.35 * SR)]
+            hit = np.where(win > 0.02)[0]
+            if len(hit):
+                w["start"] = round((i + hit[0]) / SR - 0.01, 3)
+                w["end"] = max(w["end"], w["start"] + 0.08)
+
+
 def build_scene(sid, text, pauses, fixed=None):
     jpath = os.path.join(OUT, sid + ".json")
     wpath = os.path.join(OUT, sid + ".wav")
-    sig = hashlib.md5(json.dumps([text, pauses, fixed, VOICE, RATE, SAY, PAD]).encode()).hexdigest()
+    sig = hashlib.md5(json.dumps([text, pauses, fixed, VOICE, RATE, SAY, PAD, ENGINE, PIPER_LENGTH, SAY_PIPER]).encode()).hexdigest()
     if os.path.exists(jpath) and os.path.exists(wpath):
         if json.load(open(jpath)).get("sig") == sig:
             return json.load(open(jpath))
@@ -170,18 +237,26 @@ def build_scene(sid, text, pauses, fixed=None):
         segs = [s.strip() for s in text.split("|")]
         for si, seg in enumerate(segs):
             toks = tokens_of(seg)
+            table = SAY_PIPER if ENGINE == "piper" else SAY
             for t in toks:
-                t["say"] = SAY.get(t["word"], t["word"])
+                t["say"] = table.get(t["word"], t["word"])
             say = " ".join(t["say"] for t in toks)
-            mp3 = os.path.join(OUT, f"{sid}_{si}.mp3")
-            for attempt in range(4):
-                try:
-                    bounds = asyncio.run(edge_segment(say, mp3))
-                    break
-                except Exception as e:  # Netzwerk: Retry
-                    print("   retry", e)
+            if ENGINE == "piper":
+                mp3 = os.path.join(OUT, f"{sid}_{si}.wav")
+                bounds = piper_segment(say, mp3)
+                # Whisper schreibt Zahlen/Wörter evtl. anders -> Zeichenzahl über Original-Text verteilen
+                for t in toks:
+                    t["say"] = t["word"]
+            else:
+                mp3 = os.path.join(OUT, f"{sid}_{si}.mp3")
+                for attempt in range(4):
+                    try:
+                        bounds = asyncio.run(edge_segment(say, mp3))
+                        break
+                    except Exception as e:  # Netzwerk: Retry
+                        print("   retry", e)
             pcm = decode(mp3)
-            a = align(toks, bounds)
+            a = align_words(toks, bounds) if ENGINE == "piper" else align(toks, bounds)
             pcm, a = shorten_silences(pcm, a)
             # Kein Herausschneiden von Pausen mehr (vermeidet abgehackte Wörter):
             # nur Stille am Anfang/Ende anhand der Signalenergie entfernen, mit großzügigem Ausklang.
@@ -206,6 +281,8 @@ def build_scene(sid, text, pauses, fixed=None):
                 chunks.append(np.zeros(int(gap * SR), np.float32))
                 cursor += gap
     voice = np.concatenate(chunks) if chunks else np.zeros(0, np.float32)
+    if len(voice):
+        snap_onsets(voice, words)
     dur = fixed if fixed else len(voice) / SR + PAD
     voice = np.concatenate([voice, np.zeros(max(0, int(round(dur * SR)) - len(voice)), np.float32)])
     write_wav(wpath, voice)

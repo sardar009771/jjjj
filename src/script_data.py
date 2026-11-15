@@ -7,11 +7,24 @@ Syntax im Text:
 TTS-Aussprachehilfen stehen in SAY (gleiche Wortanzahl wie das Original!).
 """
 
-VOICE = "de-DE-FlorianMultilingualNeural"  # warme, ruhige Erzählerstimme
+# Stimme: "piper" = Piper TTS mit der Stimme „Thorsten“ (Open Source, offline, frei auch für Werbung)
+#         "edge"  = Microsoft-Edge-Stimme (edge-tts, VOICE unten)
+ENGINE = "piper"
+PIPER_MODEL = "de_DE-thorsten-high"   # wird bei Bedarf nach assets/piper/ geladen
+PIPER_LENGTH = 0.92                   # < 1 = schneller (TikTok-Tempo), 1.0 = normal
+VOICE = "de-DE-FlorianMultilingualNeural"  # nur für ENGINE = "edge"
 RATE = "+10%"
 PAD = 0.25  # Puffer am Szenenende
 
 # Aussprache-Hilfen nur für die TTS (Untertitel zeigen das Original)
+SAY_PIPER = {  # Thorsten spricht englische Wörter deutsch aus -> Lautschrift-Hilfen
+    "ProFuel:": "Pro Fjuel:",
+    "Creaproof,": "Krea Pruuf,",
+    "Made": "Mäid",
+    "vegan,": "wegan,",
+    "Germany,": "Dschörmeni,",
+    "Creatin": "Kreatin", "Creatin.": "Kreatin.", "Creatin,": "Kreatin,",
+}
 SAY = {
     "ProFuel:": "Pro Fuel:",
     "Creatin": "Kreatin",

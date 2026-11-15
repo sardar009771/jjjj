@@ -292,10 +292,10 @@ def build(variant, man):
     vr = rms(speech)
     voice *= .25 / vr
     mus_base = rms(mus[: int(8 * SR)])
-    mus *= (.25 * db(-20)) / mus_base * 1.0
+    mus *= (.25 * db(-23)) / mus_base * 1.0
     fx *= db(-3)
     # 1) mit Stimme  2) ohne Stimme (Musik trägt das Video, SFX bleiben)
-    for suffix, mix in (("", voice + mus + fx), ("_ohne", mus * db(15) + fx * db(4))):
+    for suffix, mix in (("", voice + mus + fx), ("_ohne", mus * db(18) + fx * db(4))):
         mix = np.tanh(mix * 1.1) / 1.1
         mix /= max(1e-6, np.abs(mix).max()) / db(-1)
         out = os.path.join(BUILD, f"mix_{variant}{suffix}.wav")
