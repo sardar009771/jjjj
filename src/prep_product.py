@@ -3,7 +3,7 @@
 Fehlt produkt.png, wird ein Vektor-Platzhalter (src/product_fallback.html) per Playwright gerendert."""
 import os, subprocess, sys
 import numpy as np
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageFilter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "produkt.png")
@@ -16,18 +16,22 @@ def cutout(path):
     a = np.asarray(im).astype(np.float32)
     lum = a.max(axis=2)
     # Nur schwarze Bereiche, die mit dem Bildrand verbunden sind (dunkle Dose bleibt erhalten)
-    dark = (lum < 40).astype(np.uint8) * 255
-    mask = Image.fromarray(dark, "L")
-    w, h = mask.size
-    for seed in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]:
-        if mask.getpixel(seed) == 255:
-            ImageDraw.floodfill(mask, seed, 128)
-    bg = (np.asarray(mask) == 128)
+    dark = lum < 110  # weißer Beutel -> auch den grauen Schattenrand entfernen
+    # Hintergrund = dunkle Pixel, die mit dem Bildrand verbunden sind (iterative Dilatation)
+    bg = np.zeros_like(dark)
+    bg[0, :] = dark[0, :]; bg[-1, :] = dark[-1, :]; bg[:, 0] = dark[:, 0]; bg[:, -1] = dark[:, -1]
+    while True:
+        g = bg.copy()
+        g[1:, :] |= bg[:-1, :]; g[:-1, :] |= bg[1:, :]; g[:, 1:] |= bg[:, :-1]; g[:, :-1] |= bg[:, 1:]
+        g &= dark
+        if (g == bg).all():
+            break
+        bg = g
     alpha = np.where(bg, 0, 255).astype(np.uint8)
     # weiche Kante: im Randbereich Alpha aus Helligkeit ableiten (Anti-Aliasing erhalten)
     al = Image.fromarray(alpha, "L").filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
     al = np.asarray(al).astype(np.float32)
-    soft = np.clip((lum - 8) / 50.0, 0, 1) * 255
+    soft = np.clip((lum - 110) / 80.0, 0, 1) * 255
     edge = (al > 0) & (al < 255)
     al = np.where(edge, np.maximum(al * 0.5, np.minimum(soft, al + 60)), al)
     rgba = np.dstack([a, al]).astype(np.uint8)

@@ -1206,9 +1206,9 @@ SC.trust = {
 };
 
 /* ---- Packshot ---- */
-const DISCLAIMER = `<text x="495" y="1522" text-anchor="middle" font-size="25" font-weight="600" fill="#fff" opacity=".75">Werbung | Ergebnisse variieren. Nur mit Training &amp; ausgewogener Ernährung.</text>`;
+const DISCLAIMER = `<text x="495" y="1522" text-anchor="middle" font-size="22" font-weight="600" fill="#fff" opacity=".75">Werbung | Ergebnisse variieren. Nur mit Training &amp; ausgewogener Ernährung.</text>`;
 SC.pack = {
-  setup() { D.Pf = wt('profuel'); D.Cp = wt('creapure'); D.Vg = wt('vegan'); D.Md = wt('made'); D.Fm = wt('fünf'); },
+  setup() { D.Pf = wt('profuel'); D.Cp = wt('creaproof'); D.Vg = wt('vegan'); D.Md = wt('made'); D.Fm = wt('fünf'); },
   dayAt() { return 100; },
   sfx() { return [{ t: 0, type: 'whoosh' }, { t: .02, type: 'hit', gain: .9 }, { t: .05, type: 'shimmer', dur: 2.5 }, { t: D.Cp, type: 'pop' }, { t: D.Vg, type: 'pop' }, { t: D.Md, type: 'pop' }, { t: D.Fm, type: 'pop' }, { t: D.Fm + .02, type: 'ding' }]; },
   render(t) {
@@ -1218,15 +1218,15 @@ SC.pack = {
     w += `<ellipse cx="495" cy="860" rx="${f1(520 + Math.sin(t * 3) * 30)}" ry="${f1(560 + Math.sin(t * 3) * 30)}" fill="url(#gGlow)"/>`;
     w += dust(t, 40, OR2, .8, 7);
     // Sockel + Spiegelung
-    w += `<ellipse cx="495" cy="1210" rx="330" ry="46" fill="#000" opacity=".6"/><ellipse cx="495" cy="1206" rx="300" ry="34" fill="${OR}" opacity=".25" filter="url(#fBlur8)"/>`;
-    const ph = 760, fy = 840 + Math.sin(t * 2.2) * 10;
-    w += `<g transform="translate(495,${f1(fy)}) scale(${f1(pk * (1 + .05 * t))})">${product(0, 0, ph, 'filter="url(#fOrGlow)"')}</g>`;
+    w += `<ellipse cx="495" cy="1150" rx="300" ry="40" fill="#000" opacity=".6"/><ellipse cx="495" cy="1146" rx="300" ry="34" fill="${OR}" opacity=".25" filter="url(#fBlur8)"/>`;
+    const ph = 640, fy = 800 + Math.sin(t * 2.2) * 10;
+    w += `<g transform="translate(495,${f1(fy)}) scale(${(pk * (1 + .025 * t)).toFixed(3)})">${product(0, 0, ph, 'filter="url(#fOrGlow)"')}</g>`;
     // Badges
     const B = [
-      { t: D.Cp, x: 225, y: 560, w: 330, txt: 'CREAPURE®', bg: '#fff', fg: '#111', rot: -6 },
-      { t: D.Vg, x: 770, y: 640, w: 250, txt: '🌱 VEGAN', bg: '#2BD67B', fg: '#0b2a18', rot: 6 },
-      { t: D.Md, x: 265, y: 1040, w: 380, txt: '🇩🇪 MADE IN GERMANY', bg: '#111', fg: '#fff', rot: -4, stroke: '#fff' },
-      { t: D.Fm, x: 745, y: 1110, w: 350, txt: '146 PORTIONEN', bg: OR, fg: '#111', rot: 5 },
+      { t: D.Cp, x: 250, y: 540, w: 330, txt: 'CREAPROOF®', bg: '#1F5FB8', fg: '#fff', rot: -6 },
+      { t: D.Vg, x: 780, y: 660, w: 250, txt: '🌱 VEGAN', bg: '#2BD67B', fg: '#0b2a18', rot: 6 },
+      { t: D.Md, x: 265, y: 1000, w: 390, txt: '🇩🇪 MADE IN GERMANY', bg: '#111', fg: '#fff', rot: -4, stroke: '#fff' },
+      { t: D.Fm, x: 750, y: 1010, w: 340, txt: '146 PORTIONEN', bg: OR, fg: '#111', rot: 5 },
     ];
     for (const b of B) {
       if (t < b.t) continue;
@@ -1234,8 +1234,8 @@ SC.pack = {
       w += burst(t, b.t, b.x, b.y, b.bg === '#111' ? '#fff' : b.bg, 12, 230);
       w += pill(b.x, b.y + Math.sin(t * 3 + b.x) * 6, b.w, 84, b.txt, { bg: b.bg, fg: b.fg, fs: b.w > 360 ? 32 : 38, rot: b.rot, k, stroke: b.stroke, swd: 4, filter: 'fShadow' });
     }
-    if (t >= D.Fm) w += popText(t, D.Fm + .2, 760, 1190, '≈ 5 Monate*', { size: 40, fill: '#fff', sw: 8 });
-    w = cam(w, { z: 1.0 + .035 * t + entry(t) * .14, fx: 540, fy: 960 });
+    if (t >= D.Fm) w += popText(t, D.Fm + .2, 770, 1100, '≈ 5 Monate*', { size: 40, fill: '#fff', sw: 8 });
+    w = cam(w, { z: 1.0 + .012 * t + entry(t) * .14, fx: 495, fy: 900 });
     const fx = speedLines(t, entry(t) * .8) + flashRect(.7 * (1 - seg(t, 0, .15))) + DISCLAIMER
       + `<text x="495" y="1490" text-anchor="middle" font-size="21" font-weight="600" fill="#fff" opacity=".55">*bei 1 Portion täglich</text>`;
     return { world: w, fx, hud: { day: 100, bar: 1, hide: seg(t, 0, .2) }, subY: 1345 };

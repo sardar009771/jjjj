@@ -7,14 +7,13 @@ Syntax im Text:
 TTS-Aussprachehilfen stehen in SAY (gleiche Wortanzahl wie das Original!).
 """
 
-VOICE = "de-DE-ConradNeural"
-RATE = "+20%"
+VOICE = "de-DE-FlorianMultilingualNeural"  # warme, ruhige Erzählerstimme
+RATE = "+10%"
 PAD = 0.25  # Puffer am Szenenende
 
 # Aussprache-Hilfen nur für die TTS (Untertitel zeigen das Original)
 SAY = {
-    "ProFuel:": "Pro-Fjuel:",
-    "Creapure,": "Kreapjur,",
+    "ProFuel:": "Pro Fuel:",
     "Creatin": "Kreatin",
     "Creatin.": "Kreatin.",
     "Creatin,": "Kreatin,",
@@ -53,7 +52,7 @@ SCENES = [
     dict(id="d80", day=80, text="*Tag 80.* Und dann passiert’s … | … *neuer* *Bestwert!*", pauses=[0.55]),
     dict(id="d100", day=100, text="*Tag 100.* Vorher … | *nachher.*", pauses=[0.3]),
     dict(id="trust", day=100, text="Creatin ist eines der am *besten* *untersuchten* Supplements *überhaupt.*", pauses=[]),
-    dict(id="pack", day=100, text="Ich nehm *ProFuel:* reines *Creapure,* *vegan,* *Made* *in* *Germany,* und die Packung hält fast *fünf Monate.*", pauses=[]),
+    dict(id="pack", day=100, text="Ich nehm *ProFuel:* reines *Creaproof,* *vegan,* *Made* *in* *Germany,* und die Packung hält fast *fünf Monate.*", pauses=[]),
     dict(id="cta", day=100, text="Würdest *du* die *100 Tage* durchziehen? *A* oder *B* in die *Kommentare.* | Link ist im *Warenkorb.*", pauses=[0.1]),
     dict(id="loop", day=100, text="", pauses=[], fixed=0.9),
 ]

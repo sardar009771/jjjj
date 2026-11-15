@@ -294,15 +294,16 @@ def build(variant, man):
     mus_base = rms(mus[: int(8 * SR)])
     mus *= (.25 * db(-20)) / mus_base * 1.0
     fx *= db(-3)
-    # Loop: Musik am Ende kurz ausblenden, am Anfang direkt voll -> nahtlos
-    mix = voice + mus + fx
-    mix = np.tanh(mix * 1.1) / 1.1
-    mix /= max(1e-6, np.abs(mix).max()) / db(-1)
-    out = os.path.join(BUILD, f"mix_{variant}.wav")
-    x16 = (np.clip(mix, -1, 1) * 32767).astype("<i2")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "1", "-i", "-",
-                    "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(SR), "-ac", "2", out], input=x16.tobytes(), check=True)
-    print(f"{out}: {total:.2f}s  (Musik {20*np.log10(rms(mus)/rms(voice[np.abs(voice)>.01]*1)):.1f} dB rel. Stimme)")
+    # 1) mit Stimme  2) ohne Stimme (Musik trägt das Video, SFX bleiben)
+    for suffix, mix in (("", voice + mus + fx), ("_ohne", mus * db(15) + fx * db(4))):
+        mix = np.tanh(mix * 1.1) / 1.1
+        mix /= max(1e-6, np.abs(mix).max()) / db(-1)
+        out = os.path.join(BUILD, f"mix_{variant}{suffix}.wav")
+        x16 = (np.clip(mix, -1, 1) * 32767).astype("<i2")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", str(SR), "-ac", "1", "-i", "-",
+                        "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-ar", str(SR), "-ac", "2", out], input=x16.tobytes(), check=True)
+        print(f"{out}: {total:.2f}s")
+    print(f"   Musik {20*np.log10(rms(mus)/rms(voice[np.abs(voice)>.01])):.1f} dB rel. Stimme")
 
 
 if __name__ == "__main__":

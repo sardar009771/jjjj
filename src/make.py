@@ -50,11 +50,12 @@ def final():
                 f.write(f"file '{os.path.join(BUILD, 'scenes', sid + '.mp4')}'\n")
         silent = os.path.join(BUILD, f"video_{k}.mp4")
         run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", silent])
-        out = os.path.join(ROOT, "output", f"creatin_{k}.mp4")
-        run(["ffmpeg", "-v", "error", "-y", "-i", silent, "-i", os.path.join(BUILD, f"mix_{k}.wav"),
-             "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
-             "-shortest", "-movflags", "+faststart", out])
-        print("->", out)
+        for mix, name in ((f"mix_{k}.wav", f"creatin_{k}.mp4"), (f"mix_{k}_ohne.wav", f"creatin_{k}_ohne_stimme.mp4")):
+            out = os.path.join(ROOT, "output", name)
+            run(["ffmpeg", "-v", "error", "-y", "-i", silent, "-i", os.path.join(BUILD, mix),
+                 "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+                 "-shortest", "-movflags", "+faststart", out])
+            print("->", out)
 
 
 if __name__ == "__main__":

@@ -86,7 +86,7 @@ def align(toks, bounds):
 
 
 # edge-tts-MP3s beginnen ~80 ms später als die gemeldeten Wortgrenzen (Encoder-Delay, gemessen)
-EDGE_LAT = 0.08
+EDGE_LAT = 0.09
 MAXGAP = 0.17  # lange Satzpausen werden auf diesen Wert gekürzt (Jump-Cut-Tempo)
 
 
@@ -114,6 +114,50 @@ def tighten(pcm, words):
     return np.concatenate(pieces), words
 
 
+def shorten_silences(pcm, words, min_len=0.42, keep=0.30):
+    """Kürzt nur echte Stille (Energie gemessen, nicht Wortgrenzen) zwischen Sätzen auf `keep` Sekunden.
+    Wörter werden dabei nie angeschnitten; Übergänge mit kurzem Crossfade."""
+    e = np.convolve(np.abs(pcm), np.ones(480) / 480, "same")
+    quiet = e < 0.004
+    runs, i, n = [], 0, len(pcm)
+    while i < n:
+        if quiet[i]:
+            j = i
+            while j < n and quiet[j]:
+                j += 1
+            if (j - i) / SR > min_len and i > 0 and j < n:
+                runs.append((i, j))
+            i = j
+        else:
+            i += 1
+    if not runs:
+        return pcm, words
+    out, pos, xf = [], 0, int(0.015 * SR)
+    removed_total = 0
+    for (i, j) in runs:
+        cut_a = i + int(keep / 2 * SR)
+        cut_b = j - int(keep / 2 * SR)
+        out.append(pcm[pos:cut_a])
+        pos = cut_b
+        rem = (cut_b - cut_a) / SR
+        # Zeitverschiebung für alle Wörter nach diesem Schnitt
+        for w in words:
+            if w.get("_orig") is None:
+                w["_orig"] = w["start"]
+            if w["_orig"] * SR >= cut_b - int(0.05 * SR):
+                w["start"] -= rem; w["end"] -= rem
+        removed_total += rem
+    out.append(pcm[pos:])
+    res = out[0]
+    for seg in out[1:]:
+        k = min(xf, len(res), len(seg))
+        fade = np.linspace(0, 1, k, dtype=np.float32)
+        res = np.concatenate([res[:-k], res[-k:] * (1 - fade) + seg[:k] * fade, seg[k:]])
+    for w in words:
+        w.pop("_orig", None)
+    return res, words
+
+
 def build_scene(sid, text, pauses, fixed=None):
     jpath = os.path.join(OUT, sid + ".json")
     wpath = os.path.join(OUT, sid + ".wav")
@@ -138,11 +182,15 @@ def build_scene(sid, text, pauses, fixed=None):
                     print("   retry", e)
             pcm = decode(mp3)
             a = align(toks, bounds)
-            pcm, a = tighten(pcm, a)
-            first = a[0]["start"]
-            last = a[-1]["end"]
-            lead = max(0.0, first - 0.04)
-            tail = min(len(pcm) / SR, last + 0.10)
+            pcm, a = shorten_silences(pcm, a)
+            # Kein Herausschneiden von Pausen mehr (vermeidet abgehackte Wörter):
+            # nur Stille am Anfang/Ende anhand der Signalenergie entfernen, mit großzügigem Ausklang.
+            e = np.convolve(np.abs(pcm), np.ones(240) / 240, "same")
+            loud = np.where(e > 0.006)[0]
+            first = min(a[0]["start"], loud[0] / SR) if len(loud) else a[0]["start"]
+            last = max(a[-1]["end"], loud[-1] / SR) if len(loud) else a[-1]["end"]
+            lead = max(0.0, first - 0.05)
+            tail = min(len(pcm) / SR, last + 0.18)
             seg_pcm = pcm[int(lead * SR):int(tail * SR)]
             # weicher Fade am Rand
             f = min(len(seg_pcm), int(0.01 * SR))
