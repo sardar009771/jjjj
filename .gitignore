@@ -4,3 +4,4 @@ __pycache__/
 assets/piper/*.onnx
 for_one_night/build/
 tunnelblick/build/
+tunnelblick_focus/build/
